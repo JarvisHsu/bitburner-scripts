@@ -1,3 +1,4 @@
+// https://github.com/bitburner-official/bitburner-src/blob/dev/markdown/bitburner.warehouseapi.md
 /** @param {NS} ns **/
 export async function main(ns) {
 	ns.disableLog("disableLog"); ns.disableLog("sleep");
@@ -34,7 +35,7 @@ export async function main(ns) {
 }
 
 async function hireEmployees(ns, division, productCity = "Sector-12") {
-	var employees = ns.corporation.getOffice(division.name, productCity).employees;
+	var employees = ns.corporation.getOffice(division.name, productCity).numEmployees;
 	while (ns.corporation.getCorporation().funds > (cities.length * ns.corporation.getOfficeSizeUpgradeCost(division.name, productCity, 3))) {
 		// upgrade all cities + 3 employees if sufficient funds
 		ns.print(division.name + " Upgrade office size");
@@ -45,10 +46,10 @@ async function hireEmployees(ns, division, productCity = "Sector-12") {
 			}
 		}
 	}
-	if (ns.corporation.getOffice(division.name, productCity).employees.length > employees) {
+	if (ns.corporation.getOffice(division.name, productCity).numEmployees > employees) {
 		// set jobs after hiring people just in case we hire lots of people at once and setting jobs is slow
 		for (const city of cities) {
-			employees = ns.corporation.getOffice(division.name, city).employees;
+			employees = ns.corporation.getOffice(division.name, city).numEmployees;
 			// ns.print(employees)
 			if (ns.corporation.hasResearched(division.name, "Market-TA.II")) {
 				// TODO: Simplify here. ProductCity config can always be used
@@ -89,6 +90,9 @@ async function hireEmployees(ns, division, productCity = "Sector-12") {
 function upgradeWarehouses(ns, division) {
 	for (const city of cities) {
 		// check if warehouses are near max capacity and upgrade if needed
+        if (!ns.corporation.hasWarehouse(division.name, city)){
+            ns.corporation.purchaseWarehouse(division.name, city)
+        }
 		var cityWarehouse = ns.corporation.getWarehouse(division.name, city);
 		if (cityWarehouse.sizeUsed > 0.9 * cityWarehouse.size) {
 			if (ns.corporation.getCorporation().funds > ns.corporation.getUpgradeWarehouseCost(division.name, city)) {
@@ -119,11 +123,11 @@ function upgradeCorp(ns) {
 	}
 	if (!ns.corporation.hasUnlock("Shady Accounting") && ns.corporation.getUnlockCost("Shady Accounting") * 2 < ns.corporation.getCorporation().funds) {
 		ns.print("Unlock Shady Accounting")
-		ns.corporation.unlockUpgrade("Shady Accounting");
+		ns.corporation.purchaseUnlock("Shady Accounting");
 	}
 	else if (!ns.corporation.hasUnlock("Government Partnership") && ns.corporation.getUnlockCost("Government Partnership") * 2 < ns.corporation.getCorporation().funds) {
 		ns.print("Unlock Government Partnership")
-		ns.corporation.unlockUpgrade("Government Partnership");
+		ns.corporation.purchaseUnlock("Government Partnership");
 	}
 }
 
@@ -251,26 +255,32 @@ function doResearch(ns, division) {
 
 function newProduct(ns, division) {
 	//ns.print("Products: " + division.products);
-	var productNumbers = [];
-	for (var product of division.products) {
-		if (ns.corporation.getProduct(division.name, product).developmentProgress < 100) {
-			ns.print(division.name + " Product development progress: " + ns.corporation.getProduct(division.name, product).developmentProgress.toFixed(1) + "%");
-			return false;
-		}
-		else {
-			productNumbers.push(product.charAt(product.length - 1));
-			// initial sell value if nothing is defined yet is 0
-			if (ns.corporation.getProduct(division.name, product).sCost == 0) {
-				ns.print(division.name + " Start selling product " + product);
-				ns.corporation.sellProduct(division.name, "Sector-12", product, "MAX", "MP", true);
-				if (ns.corporation.hasResearched(division.name, "Market-TA.II")) {
-					ns.corporation.setProductMarketTA1(division.name, product, true);
-					ns.corporation.setProductMarketTA2(division.name, product, true);
-				}
-			}
-		}
-	}
-
+    for (const city of cities) {
+        if (!ns.corporation.hasWarehouse(division.name, city)){
+            continue
+        }
+        var office = ns.corporation.getOffice(division.name, city)
+        var productNumbers = [];
+        for (var product of division.products) {
+            if (ns.corporation.getProduct(division.name, city,product).developmentProgress < 100) {
+                ns.print(division.name + " Product development progress: " + ns.corporation.getProduct(division.name,city, product).developmentProgress.toFixed(1) + "%");
+                return false;
+            }
+            else {
+                productNumbers.push(product.charAt(product.length - 1));
+                // initial sell value if nothing is defined yet is 0
+                if (ns.corporation.getProduct(division.name,city, product).productionCost == 0) {
+                    ns.print(division.name + " Start selling product " + product);
+                    ns.corporation.sellProduct(division.name, city, product, "MAX", "MP", true);
+                    if (office.hasResearched(division.name, "Market-TA.II")) {
+                        ns.corporation.setProductMarketTA1(division.name, product, true);
+                        ns.corporation.setProductMarketTA2(division.name, product, true);
+                    }
+                }
+            }
+        }
+    }
+    
 	var numProducts = 3;
 	// amount of products which can be sold in parallel is 3; can be upgraded
 	if (ns.corporation.hasResearched(division.name, "uPgrade: Capacity.I")) {
