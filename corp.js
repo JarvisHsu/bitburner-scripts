@@ -481,7 +481,9 @@ export async function autopilot(ns, cities, jobs, division, mainCity = 'Aevum') 
         // Go public if revenue is high enough
         if (corp.getCorporation().revenue >= 1e18) {
             ns.print(`CORP: Revenue reached $1q, going public`);
-            corp.goPublic(0);
+            if (!corp.getCorporation().public) {
+                corp.goPublic(0);
+            }
         }
 
         // Public company actions
